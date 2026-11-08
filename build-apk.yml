@@ -1,0 +1,62 @@
+name: Android APK — Eslatmalar
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip autoconf automake libtool pkg-config \
+            cmake libffi-dev libssl-dev libsqlite3-dev \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            gettext autopoint patchelf
+
+      - name: Install Python build tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install "buildozer>=1.5.0" "cython==0.29.34" "pytest>=8,<10" 
+
+      - name: Check Python sources and database tests
+        run: |
+          python -m py_compile main.py storage.py
+          python -m pytest -q tests/test_storage.py
+
+      - name: Build signed debug APK
+        run: |
+          buildozer -v android debug
+
+      - name: Confirm APK exists
+        run: |
+          find bin -maxdepth 1 -type f -name '*.apk' -printf '%f (%s bytes)\n'
+          test -n "$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
+
+      - name: Publish installable APK to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eslatmalar-Mingqulova-Rayhona-Android-APK
+          path: bin/*.apk
+          if-no-files-found: error
+          retention-days: 30
